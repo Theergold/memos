@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -54,9 +53,10 @@ type Memo struct {
 	Pinned     bool       `json:"pinned"`
 
 	// Related fields
-	CreatorName  string          `json:"creatorName"`
-	ResourceList []*Resource     `json:"resourceList"`
-	RelationList []*MemoRelation `json:"relationList"`
+	CreatorName     string          `json:"creatorName"`
+	CreatorUsername string          `json:"creatorUsername"`
+	ResourceList    []*Resource     `json:"resourceList"`
+	RelationList    []*MemoRelation `json:"relationList"`
 }
 
 type CreateMemoRequest struct {
@@ -355,18 +355,30 @@ func (s *APIV1Service) registerMemoRoutes(g *echo.Group) {
 			findMemoMessage.CreatorID = &userID
 		}
 
+		if username := c.QueryParam("creatorUsername"); username != "" {
+			user, _ := s.Store.GetUser(ctx, &store.FindUser{Username: &username})
+			if user != nil {
+				findMemoMessage.CreatorID = &user.ID
+			}
+		}
+
 		currentUserID, ok := c.Get(getUserIDContextKey()).(int)
 		if !ok {
+			// Anonymous use should only fetch PUBLIC memos with specified user
 			if findMemoMessage.CreatorID == nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "Missing user id to find memo")
+				return echo.NewHTTPError(http.StatusBadRequest, "Missing user to find memo")
 			}
 			findMemoMessage.VisibilityList = []store.Visibility{store.Public}
 		} else {
-			if findMemoMessage.CreatorID == nil {
+			// Authorized user can fetch all PUBLIC/PROTECTED memo
+			visibilityList := []store.Visibility{store.Public, store.Protected}
+
+			// If Creator is authorized user (as default), PRIVATE memo is OK
+			if findMemoMessage.CreatorID == nil || *findMemoMessage.CreatorID == currentUserID {
 				findMemoMessage.CreatorID = &currentUserID
-			} else {
-				findMemoMessage.VisibilityList = []store.Visibility{store.Public, store.Protected}
+				visibilityList = append(visibilityList, store.Private)
 			}
+			findMemoMessage.VisibilityList = visibilityList
 		}
 
 		rowStatus := store.RowStatus(c.QueryParam("rowStatus"))
@@ -390,14 +402,6 @@ func (s *APIV1Service) registerMemoRoutes(g *echo.Group) {
 		}
 		findMemoMessage.ContentSearch = contentSearch
 
-		visibilityListStr := c.QueryParam("visibility")
-		if visibilityListStr != "" {
-			visibilityList := []store.Visibility{}
-			for _, visibility := range strings.Split(visibilityListStr, ",") {
-				visibilityList = append(visibilityList, store.Visibility(visibility))
-			}
-			findMemoMessage.VisibilityList = visibilityList
-		}
 		if limit, err := strconv.Atoi(c.QueryParam("limit")); err == nil {
 			findMemoMessage.Limit = &limit
 		}
@@ -471,6 +475,14 @@ func (s *APIV1Service) registerMemoRoutes(g *echo.Group) {
 		if creatorID, err := strconv.Atoi(c.QueryParam("creatorId")); err == nil {
 			findMemoMessage.CreatorID = &creatorID
 		}
+
+		if username := c.QueryParam("creatorUsername"); username != "" {
+			user, _ := s.Store.GetUser(ctx, &store.FindUser{Username: &username})
+			if user != nil {
+				findMemoMessage.CreatorID = &user.ID
+			}
+		}
+
 		if findMemoMessage.CreatorID == nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "Missing user id to find memo")
 		}
@@ -541,14 +553,6 @@ func (s *APIV1Service) registerMemoRoutes(g *echo.Group) {
 		}
 		findMemoMessage.ContentSearch = contentSearch
 
-		visibilityListStr := c.QueryParam("visibility")
-		if visibilityListStr != "" {
-			visibilityList := []store.Visibility{}
-			for _, visibility := range strings.Split(visibilityListStr, ",") {
-				visibilityList = append(visibilityList, store.Visibility(visibility))
-			}
-			findMemoMessage.VisibilityList = visibilityList
-		}
 		if limit, err := strconv.Atoi(c.QueryParam("limit")); err == nil {
 			findMemoMessage.Limit = &limit
 		}
@@ -661,6 +665,8 @@ func (s *APIV1Service) convertMemoFromStore(ctx context.Context, memo *store.Mem
 	} else {
 		memoResponse.CreatorName = user.Username
 	}
+
+	memoResponse.CreatorUsername = user.Username
 
 	// Compose display ts.
 	memoResponse.DisplayTs = memoResponse.CreatedTs

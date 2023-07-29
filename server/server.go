@@ -64,13 +64,18 @@ func NewServer(ctx context.Context, profile *profile.Profile, store *store.Store
 	}))
 
 	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
+		Skipper: func(c echo.Context) bool {
+			// this is a hack to skip timeout for openai chat streaming
+			// because streaming require to flush response. But the timeout middleware will break it.
+			return c.Request().URL.Path == "/api/v1/openai/chat-streaming"
+		},
 		ErrorMessage: "Request timeout",
 		Timeout:      30 * time.Second,
 	}))
 
 	serverID, err := s.getSystemServerID(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve system server ID: %w", err)
 	}
 	s.ID = serverID
 
@@ -80,7 +85,7 @@ func NewServer(ctx context.Context, profile *profile.Profile, store *store.Store
 	if profile.Mode == "prod" {
 		secret, err = s.getSystemSecretSessionName(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to retrieve system secret session name: %w", err)
 		}
 	}
 	s.Secret = secret
@@ -98,6 +103,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	go s.telegramBot.Start(ctx)
+	go autoBackup(ctx, s.Store)
 
 	return s.e.Start(fmt.Sprintf(":%d", s.Profile.Port))
 }

@@ -1,4 +1,6 @@
 import axios from "axios";
+import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { Message } from "@/store/zustand/message";
 
 export function getSystemStatus() {
   return axios.get<SystemStatus>("/api/v1/status");
@@ -54,8 +56,8 @@ export function getUserList() {
   return axios.get<User[]>("/api/v1/user");
 }
 
-export function getUserById(id: number) {
-  return axios.get<User>(`/api/v1/user/${id}`);
+export function getUserByUsername(username: string) {
+  return axios.get<User>(`/api/v1/user/name/${username}`);
 }
 
 export function upsertUserSetting(upsert: UserSettingUpsert) {
@@ -79,13 +81,17 @@ export function getAllMemos(memoFind?: MemoFind) {
     queryList.push(`limit=${memoFind.limit}`);
   }
 
+  if (memoFind?.creatorUsername) {
+    queryList.push(`creatorUsername=${memoFind.creatorUsername}`);
+  }
+
   return axios.get<Memo[]>(`/api/v1/memo/all?${queryList.join("&")}`);
 }
 
 export function getMemoList(memoFind?: MemoFind) {
   const queryList = [];
-  if (memoFind?.creatorId) {
-    queryList.push(`creatorId=${memoFind.creatorId}`);
+  if (memoFind?.creatorUsername) {
+    queryList.push(`creatorUsername=${memoFind.creatorUsername}`);
   }
   if (memoFind?.rowStatus) {
     queryList.push(`rowStatus=${memoFind.rowStatus}`);
@@ -102,8 +108,8 @@ export function getMemoList(memoFind?: MemoFind) {
   return axios.get<Memo[]>(`/api/v1/memo?${queryList.join("&")}`);
 }
 
-export function getMemoStats(userId: UserId) {
-  return axios.get<number[]>(`/api/v1/memo/stats?creatorId=${userId}`);
+export function getMemoStats(username: string) {
+  return axios.get<number[]>(`/api/v1/memo/stats?creatorUsername=${username}`);
 }
 
 export function getMemoById(id: MemoId) {
@@ -133,11 +139,36 @@ export function unpinMemo(memoId: MemoId) {
 export function deleteMemo(memoId: MemoId) {
   return axios.delete(`/api/v1/memo/${memoId}`);
 }
+export function checkOpenAIEnabled() {
+  return axios.get<boolean>(`/api/openai/enabled`);
+}
+
+export async function chatStreaming(messageList: Array<Message>, onmessage: any, onclose: any) {
+  await fetchEventSource("/api/v1/openai/chat-streaming", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(messageList),
+    async onopen() {
+      // to do nth
+    },
+    onmessage(event: any) {
+      onmessage(event);
+    },
+    onclose() {
+      onclose();
+    },
+    onerror(error: any) {
+      console.log("error", error);
+    },
+  });
+}
 
 export function getShortcutList(shortcutFind?: ShortcutFind) {
   const queryList = [];
-  if (shortcutFind?.creatorId) {
-    queryList.push(`creatorId=${shortcutFind.creatorId}`);
+  if (shortcutFind?.creatorUsername) {
+    queryList.push(`creatorUsername=${shortcutFind.creatorUsername}`);
   }
   return axios.get<Shortcut[]>(`/api/v1/shortcut?${queryList.join("&")}`);
 }
@@ -201,8 +232,8 @@ export function deleteMemoResource(memoId: MemoId, resourceId: ResourceId) {
 
 export function getTagList(tagFind?: TagFind) {
   const queryList = [];
-  if (tagFind?.creatorId) {
-    queryList.push(`creatorId=${tagFind.creatorId}`);
+  if (tagFind?.creatorUsername) {
+    queryList.push(`creatorUsername=${tagFind.creatorUsername}`);
   }
   return axios.get<string[]>(`/api/v1/tag?${queryList.join("&")}`);
 }
