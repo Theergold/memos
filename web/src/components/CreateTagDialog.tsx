@@ -1,13 +1,13 @@
 import { Button, Input } from "@mui/joy";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { useTranslate } from "@/utils/i18n";
-import { useTagStore } from "@/store/module";
 import { getTagSuggestionList } from "@/helpers/api";
 import { matcher } from "@/labs/marked/matcher";
 import Tag from "@/labs/marked/parser/Tag";
-import Icon from "./Icon";
+import { useTagStore } from "@/store/module";
+import { useTranslate } from "@/utils/i18n";
 import { generateDialog } from "./Dialog";
+import Icon from "./Icon";
 
 type Props = DialogProps;
 
@@ -56,7 +56,7 @@ const CreateTagDialog: React.FC<Props> = (props: Props) => {
 
   const handleSaveBtnClick = async () => {
     if (!validateTagName(tagName)) {
-      toast.error("Invalid tag name");
+      toast.error(t("tag-list.invalid-tag-name"));
       return;
     }
 
@@ -123,9 +123,9 @@ const CreateTagDialog: React.FC<Props> = (props: Props) => {
         {shownSuggestTagNameList.length > 0 && (
           <>
             <div className="mt-4 mb-1 text-sm w-full flex flex-row justify-start items-center">
-              <span className="text-gray-400 mr-2">Tag suggestions</span>
+              <span className="text-gray-400 mr-2">{t("tag-list.tag-suggestions")}</span>
               <Button size="sm" variant="outlined" onClick={handleToggleShowSuggestionTags}>
-                {showTagSuggestions ? "hide" : "show"}
+                {showTagSuggestions ? t("tag-list.hide") : t("tag-list.show")}
               </Button>
             </div>
             {showTagSuggestions && (
@@ -142,7 +142,7 @@ const CreateTagDialog: React.FC<Props> = (props: Props) => {
                   ))}
                 </div>
                 <Button size="sm" onClick={handleSaveSuggestTagList}>
-                  Save all
+                  {t("tag-list.save-all")}
                 </Button>
               </>
             )}
